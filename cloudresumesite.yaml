@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Cloud Resume Challenge - Static web frontend
+
+Parameters: 
+  DomainNameParameter:
+    Type: String
+    Description: >
+      Domain name
+  CertificateParameter:
+    Type: String
+    Description: >
+      ACM Certificate ARN to use
+
+Resources: 
+  CloudResumeSiteOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub  "CloudResumeSiteOAI-${DomainNameParameter}"
+  CloudResumeSiteBucket:
+    Type: AWS::S3::Bucket
+  CloudResumeSiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - "s3:GetObject"
+            Effect: "Allow"
+            Resource: !Join ["", ["arn:aws:s3:::", !Ref CloudResumeSiteBucket, "/*"]]
+            Principal:
+              AWS: !Join ["", ["arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ", !Ref CloudResumeSiteOAI]]
+      Bucket: !Ref CloudResumeSiteBucket
+  CloudResumeSiteCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultRootObject: "index.html"
+        Aliases:
+          - !Ref DomainNameParameter
+        DefaultCacheBehavior:
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          TargetOriginId: CloudResumeSiteBucket
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        Origins:
+          - Id: CloudResumeSiteBucket
+            DomainName: !GetAtt CloudResumeSiteBucket.DomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Join ["", ["origin-access-identity/cloudfront/", !Ref CloudResumeSiteOAI]]
+            OriginPath: "/contents"
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateParameter
+          MinimumProtocolVersion: TLSv1
+          SslSupportMethod: sni-only
+Outputs:
+  CloudResumeSiteOAI:
+    Description: "Origin Access Identity ID"
+    Value: !Ref CloudResumeSiteOAI
+  CloudResumeSiteCloudFrontDistribution:
+    Description: "CloudFront Distribution ID"
+    Value: !Ref CloudResumeSiteCloudFrontDistribution
+  CloudResumeSiteCloudFrontDistributionDomainName:
+    Description: "CloudFront Distribution domain name"
+    Value: !GetAtt CloudResumeSiteCloudFrontDistribution.DomainName
+  CloudResumeSiteBucket:
+    Description: "S3 Bucket"
+    Value: !Ref CloudResumeSiteBucket
